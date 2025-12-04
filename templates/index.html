@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="referrer" content="no-referrer">
+    <title>StreamHub</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { 
+            --primary: #FF0000; 
+            --bg-dark: #050505; 
+            --bg-card: rgba(30, 30, 30, 0.6);
+            --text: #ffffff; 
+            --glass: rgba(255, 255, 255, 0.05);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body { 
+            margin: 0; padding: 0; 
+            font-family: 'Inter', sans-serif; 
+            background: #050505; 
+            color: var(--text); 
+            height: 100dvh; width: 100%; 
+            display: flex; flex-direction: column; overflow: hidden;
+            background: linear-gradient(-45deg, #000000, #1a0505, #000000, #050505);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+        }
+        @keyframes gradientBG { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+
+        /* LOADER */
+        #loader { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #000; z-index: 9999; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; transition: opacity 0.6s ease-out;
+        }
+        .loader-brand { font-size: 32px; font-weight: 800; letter-spacing: -1px; margin-bottom: 20px; animation: pulse-text 2s infinite; }
+        .loader-brand span { color: var(--primary); }
+        .loader-bar-bg { width: 140px; height: 3px; background: #222; border-radius: 3px; overflow: hidden; }
+        .loader-bar-fill { width: 100%; height: 100%; background: var(--primary); animation: progress-slide 1.5s infinite ease-in-out; transform-origin: left; }
+        @keyframes progress-slide { 0% { transform: scaleX(0); } 50% { transform: scaleX(1); } 100% { transform: scaleX(0); transform-origin: right; } }
+        @keyframes pulse-text { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+        /* HEADER */
+        header {
+            flex-shrink: 0; height: 60px;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0 20px; background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            z-index: 50;
+        }
+        .brand { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; display: flex; align-items: center; gap: 5px; }
+        .brand span { color: var(--primary); }
+        .live-badge { font-size: 11px; font-weight: 700; color: var(--primary); background: rgba(255, 0, 0, 0.15); padding: 5px 10px; border-radius: 20px; display: flex; align-items: center; gap: 6px; }
+        .dot { width: 6px; height: 6px; background: var(--primary); border-radius: 50%; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        /* PLAYER FRAME */
+        #video-section { 
+            width: 100%; background: #000; flex-shrink: 0; z-index: 40; 
+            padding-bottom: 1px;
+            box-shadow: 0 20px 60px -20px rgba(255, 0, 0, 0.15);
+        }
+        .player-frame { position: relative; margin: 0; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .video-container { position: relative; width: 100%; padding-top: 56.25%; }
+        #artplayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        @media (min-width: 768px) { .player-frame { margin: 20px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 0 30px rgba(255,0,0,0.1); } }
+
+        /* TABS */
+        #playlist-switcher { flex-shrink: 0; padding: 15px 0; white-space: nowrap; overflow-x: auto; background: transparent; }
+        #playlist-switcher::-webkit-scrollbar { display: none; }
+        .list-btn { 
+            display: inline-block; padding: 8px 18px; margin: 0 5px; 
+            background: rgba(255,255,255,0.05); border-radius: 10px;
+            font-size: 13px; font-weight: 600; color: #aaa; 
+            cursor: pointer; transition: all 0.3s; border: 1px solid transparent;
+        }
+        .list-btn:first-child { margin-left: 20px; }
+        .list-btn:hover { background: rgba(255,255,255,0.1); color: white; }
+        .list-btn.active { background: #fff; color: #000; box-shadow: 0 4px 15px rgba(255,255,255,0.1); transform: scale(1.05); }
+
+        /* SEARCH */
+        #search-section { flex-shrink: 0; padding: 0 20px 10px 20px; }
+        #search-box { width: 100%; padding: 12px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: white; font-size: 14px; outline: none; transition: 0.3s; }
+        #search-box:focus { border-color: rgba(255,255,255,0.3); background: rgba(255,255,255,0.1); }
+
+        /* GRID */
+        #list-section { flex-grow: 1; overflow-y: auto; overflow-x: hidden; padding: 0 16px 80px 16px; }
+        .channel-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: 100%; }
+        
+        .channel-card { 
+            background: var(--bg-card); backdrop-filter: blur(10px);
+            border-radius: 12px; padding: 8px; 
+            text-align: center; cursor: pointer; height: 110px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);
+            transition: transform 0.2s, background 0.2s;
+        }
+        .channel-card:active { background: #333; transform: scale(0.96); }
+        .channel-card.active { border: 1px solid var(--primary); background: rgba(255, 0, 0, 0.08); }
+        
+        .now-playing-badge { position: absolute; top: 6px; right: 6px; background: var(--primary); color: white; font-size: 7px; font-weight: 800; padding: 2px 5px; border-radius: 3px; display: none; z-index: 2; }
+        .channel-card.active .now-playing-badge { display: block; }
+        
+        .fav-btn { position: absolute; top: 5px; left: 5px; font-size: 14px; color: rgba(255,255,255,0.3); z-index: 5; padding: 5px; transition: 0.2s; }
+        .fav-btn.is-fav { color: var(--primary); transform: scale(1.1); }
+
+        .channel-logo { width: 45px; height: 45px; object-fit: contain; margin-bottom: 8px; opacity: 0; transform: scale(0.9); transition: all 0.5s ease; }
+        .channel-logo.loaded { opacity: 1; transform: scale(1); }
+        .channel-name { font-size: 10px; font-weight: 600; line-height: 1.2; color: #eee; max-height: 26px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; width: 100%; }
+
+        .skeleton { background: rgba(255,255,255,0.05); border-radius: 12px; height: 110px; animation: pulse-bg 1.5s infinite; }
+        @keyframes pulse-bg { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        
+        #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background: #222; color: white; padding: 10px 24px; border-radius: 50px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1); transition: transform 0.3s; opacity: 0; pointer-events: none; z-index: 100; }
+        #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    </style>
+</head>
+<body>
+    
+    <div id="loader">
+        <div class="loader-brand">Stream<span>Hub</span></div>
+        <div class="loader-bar-bg"><div class="loader-bar-fill"></div></div>
+    </div>
+
+    <header>
+        <div class="brand">Stream<span>Hub</span></div>
+        <div class="live-badge"><div class="dot"></div> LIVE</div>
+    </header>
+
+    <div id="video-section">
+        <div class="player-frame">
+            <div class="video-container"><div id="artplayer"></div></div>
+        </div>
+    </div>
+    
+    <div id="toast">Welcome</div>
+
+    <div id="playlist-switcher"></div>
+    <div id="search-section"><input type="text" id="search-box" placeholder="Search channels..."></div>
+    <div id="list-section"><div class="channel-grid" id="channel-list"></div><div id="sentinel" style="height: 20px;"></div></div>
+
+    <script>
+        var art;
+        var allChannels = [];
+        var filteredList = [];
+        var currentPlaylistName = '';
+        var displayedCount = 0;
+        const BATCH_SIZE = 60;
+        var listContainer = document.getElementById('channel-list');
+        var sentinel = document.getElementById('sentinel');
+        var searchTimeout;
+        
+        // --- YOUR INTRO LOOP URL ---
+        const INTRO_URL = "http://129.150.38.160:8000/stream/61?hash=ef53b7";
+
+        // Favorites
+        var favorites = JSON.parse(localStorage.getItem('streamhub_favs')) || [];
+
+        function toggleFavorite(e, channel) {
+            e.stopPropagation(); 
+            const index = favorites.findIndex(f => f.url === channel.url);
+            if (index === -1) {
+                favorites.push(channel);
+                e.target.classList.add('is-fav');
+                showToast("Added to Favorites");
+            } else {
+                favorites.splice(index, 1);
+                e.target.classList.remove('is-fav');
+                showToast("Removed from Favorites");
+                if (currentPlaylistName === 'Favorites') { e.target.parentElement.style.display = 'none'; }
+            }
+            localStorage.setItem('streamhub_favs', JSON.stringify(favorites));
+        }
+
+        // --- PLAYER INIT ---
+        function initArtPlayer(url) {
+            if (art) { art.destroy(false); art = null; }
+            const hlsConfig = { enableWorker: true, startFragPrefetch: true, autoLevelEnabled: false, maxBufferLength: 30, maxMaxBufferLength: 30 };
+
+            const isRadio = currentPlaylistName === 'Radio';
+            const radioPoster = 'https://images.unsplash.com/photo-1478737270239-2f02b77ac6d5?q=80&w=1966&auto=format&fit=crop';
+
+            art = new Artplayer({
+                container: '#artplayer', url: url || '', volume: 1.0, isLive: true, autoplay: true, muted: false,
+                
+                // --- LOOP SETTING FOR INTRO ---
+                loop: true,  // Loop video automatically
+                
+                pip: true, autoMini: true, theme: '#FF0000',
+                poster: isRadio ? radioPoster : '',
+                setting: true, playbackRate: true, aspectRatio: true, flip: true,
+                fullscreen: true, fullscreenWeb: true, autoOrientation: true,
+                moreVideoAttr: { playsInline: true, 'webkit-playsinline': true },
+                customType: {
+                    m3u8: function (video, url, art) {
+                        if (Hls.isSupported()) {
+                            const hls = new Hls(hlsConfig);
+                            hls.loadSource(url); hls.attachMedia(video); art.hls = hls;
+                            hls.on(Hls.Events.ERROR, (e, data) => { if (data.fatal) hls.startLoad(); });
+                            hls.on(Hls.Events.MANIFEST_PARSED, (e, data) => {
+                                if (data.levels.length > 1) {
+                                    const levels = data.levels.map((l, i) => ({ html: (l.height ? l.height+'p' : 'Level '+i), height: l.height || 0, originalIndex: i }));
+                                    levels.sort((a, b) => b.height - a.height);
+                                    levels.unshift({ html: 'Auto', originalIndex: -1, default: true });
+                                    art.controls.add({ name: 'quality', position: 'right', html: 'Quality', selector: levels, onSelect: (item) => { hls.currentLevel = item.originalIndex; return item.html; } });
+                                }
+                            });
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src = url; }
+                    }
+                },
+            });
+        }
+
+        // --- FETCH & LOAD ---
+        fetch('/api/playlists').then(res => res.json()).then(names => {
+            const switcher = document.getElementById('playlist-switcher');
+            const favBtn = document.createElement('div');
+            favBtn.className = 'list-btn'; favBtn.innerHTML = '♥ Favorites';
+            favBtn.onclick = function() { loadFavorites(this); };
+            switcher.appendChild(favBtn);
+
+            names.forEach((name, index) => {
+                const btn = document.createElement('div');
+                btn.className = 'list-btn'; btn.textContent = name;
+                btn.onclick = function() { switchPlaylist(name, this); };
+                switcher.appendChild(btn);
+                
+                // Initial Load
+                if (index === 0) { 
+                    btn.classList.add('active'); 
+                    switchPlaylist(name, btn, true); // true = This is the first load
+                }
+            });
+        });
+
+        function loadFavorites(element) {
+            currentPlaylistName = 'Favorites';
+            document.querySelectorAll('.list-btn').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            allChannels = favorites; filteredList = favorites;
+            document.getElementById('search-box').value = '';
+            listContainer.innerHTML = ''; displayedCount = 0;
+            if (favorites.length === 0) listContainer.innerHTML = '<div class="no-results">No favorites yet.<br>Click ♥ to add.</div>';
+            else loadMoreChannels();
+            showToast("Favorites Loaded");
+        }
+
+        function switchPlaylist(name, element, isInitial = false) {
+            if (name === currentPlaylistName && !isInitial) {
+                document.getElementById('search-box').value = ''; filteredList = allChannels;
+                displayedCount = 0; listContainer.innerHTML = ''; loadMoreChannels(); listContainer.scrollTop = 0; return;
+            }
+            currentPlaylistName = name;
+            document.querySelectorAll('.list-btn').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            
+            listContainer.innerHTML = '';
+            for(let i=0; i<12; i++) { const skel = document.createElement('div'); skel.className = 'skeleton'; listContainer.appendChild(skel); }
+
+            fetch(`/api/channels?playlist=${encodeURIComponent(name)}`)
+                .then(res => res.json())
+                .then(data => {
+                    allChannels = data; filteredList = data;
+                    document.getElementById('search-box').value = '';
+                    listContainer.innerHTML = ''; displayedCount = 0; loadMoreChannels();
+                    
+                    // Show Toast
+                    if (!isInitial) showToast(`${name} Loaded`);
+
+                    // --- INITIAL LOAD LOGIC ---
+                    if (isInitial) {
+                        // පළමු වරට ලෝඩ් වන විට, Intro Video එක Play කරන්න
+                        initArtPlayer(INTRO_URL);
+                    }
+                    // Note: We DON'T play data[0].url automatically anymore.
+                    
+                    listContainer.scrollTop = 0;
+                });
+        }
+
+        function loadMoreChannels() {
+            if (displayedCount >= filteredList.length) return;
+            const batch = filteredList.slice(displayedCount, displayedCount + BATCH_SIZE);
+            const frag = document.createDocumentFragment();
+            batch.forEach(ch => {
+                const div = document.createElement('div');
+                div.className = 'channel-card';
+                if (art && art.option.url === ch.url) div.classList.add('active');
+                
+                const logo = ch.logo || 'https://via.placeholder.com/50/222/fff?text=TV';
+                const isFav = favorites.some(f => f.url === ch.url) ? 'is-fav' : '';
+
+                div.innerHTML = `
+                    <div class="fav-btn ${isFav}" onclick='toggleFavorite(event, ${JSON.stringify(ch)})'>♥</div>
+                    <div class="now-playing-badge">PLAYING</div>
+                    <img src="${logo}" class="channel-logo" loading="lazy" onload="this.classList.add('loaded')" onerror="this.src='https://via.placeholder.com/50/222/fff?text=TV'; this.classList.add('loaded')">
+                    <div class="channel-name">${ch.name}</div>
+                `;
+                div.onclick = () => { playChannel(ch.url, div); };
+                frag.appendChild(div);
+            });
+            listContainer.appendChild(frag);
+            displayedCount += batch.length;
+        }
+
+        function playChannel(url, element) {
+            // User clicked a channel -> Stop Intro -> Play Channel
+            initArtPlayer(url);
+            document.querySelectorAll('.channel-card').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        new IntersectionObserver(e => { if(e[0].isIntersecting) loadMoreChannels(); }, { root: document.getElementById('list-section'), rootMargin: '200px' }).observe(sentinel);
+        
+        document.getElementById('search-box').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                const term = e.target.value.toLowerCase();
+                filteredList = allChannels.filter(ch => ch.name.toLowerCase().includes(term));
+                listContainer.innerHTML = ''; displayedCount = 0; loadMoreChannels();
+            }, 300);
+        });
+        
+        setTimeout(() => {
+            document.getElementById('loader').style.opacity = '0';
+            setTimeout(() => document.getElementById('loader').style.display = 'none', 600);
+        }, 1500);
+    </script>
+</body>
+      </html>
